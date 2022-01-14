@@ -2,6 +2,8 @@ from matplotlib import pyplot as plt
 import numpy as np
 import pickle
 import math
+import itertools
+from timeit import default_timer as timer
 
 def unpickle(file):
     with open(file, "rb") as f:
@@ -40,30 +42,42 @@ def softmax(x):
         Returns:
             [ndarray[uint8]]: Vector after applying softmax
         """
+        # For numerical stability
+        exp = np.exp(x - np.max(x))
+
         # Calculate exponentiation of the elements
-        x = np.exp(x)
-
-        # Calculate the sum of the elements
-        sum_of_elements = np.sum(x)
-
-        # Divide each element by the sum of the elements
-        x = x / sum_of_elements
+        for i in range(len(x)):
+            exp[i] /= np.sum(exp[i])
 
         # Return the vector (applied softmax)
-        return x
+        return exp
 
 
 def cross_entropy(y, p):
     """Calculates the cross entropy for the given vector
 
     Args:
-        y (ndarray[unit8]): An ndarray vector
-        p (ndarray[unit8]): An ndarray vector
+        y (ndarray[unit8]): True labels
+        p (ndarray[unit8]): Probabilities
 
     Returns:
         [float]: Cross entropy for two vectors
     """
-    return -np.sum(y.T * np.log(p))
+    # return -np.sum(np.dot(y.T, np.log(p)))
+    return -np.mean(np.log(p[np.arange(len(y)), y]))
+
+
+def one_hot_encode(labels, num_of_classes):
+    """One hot encodes the labels vector
+
+    Args:
+        labels ([ndarray]): A vector of indices
+        num_of_classes ([int]): Number of classes
+
+    Returns:
+        [ndarray[uint8]]: A matrix of labels.size x num_of_classes
+    """
+    return np.identity(num_of_classes)[labels]
 
 
 class Model:
@@ -85,7 +99,7 @@ class Model:
         self.learning_rate = 0.005
 
         # TODO: Initialize weights and biases
-        self.W = np.zeros((10, 3072))
+        self.W = np.zeros((3072, 10))
         self.b = np.zeros((10,))
 
     def forward(self, inputs):
@@ -97,16 +111,10 @@ class Model:
         """
         # TODO: Write the forward pass logic for your model
         # TODO: Calculate, then return, the probability for each class per image using the Softmax equation
-        batch_size, input_size = inputs.shape
-
-        # Create an empty ndarray to store predictions for each image
-        predictions = np.empty((batch_size, self.num_classes))
-
         # Calculate prediction for each input image and corresponding class
-        for idx, x in enumerate(inputs):
-            predictions[idx] = softmax(self.W * x + self.b)
+        probabilities = softmax(np.dot(inputs, self.W) + self.b)
 
-        return predictions
+        return probabilities
 
     def loss(self, probabilities, labels):
         """
@@ -118,15 +126,17 @@ class Model:
         :return: average loss per batch element (float)
         """
         # TODO: calculate average cross entropy loss for a batch
-        batch_size, num_of_classes = probabilities.shape
+        # Convert labels to one-hot encoding
+        one_hot_encoded_labels = one_hot_encode(labels, self.num_classes)
 
         # Calculate sum of cross entropies for each image in the batch
         sum_of_cross_entropies = 0
-        for _ in range(batch_size):
+        for _ in range(self.batch_size):
+            # sum_of_cross_entropies += cross_entropy(one_hot_encoded_labels, probabilities)
             sum_of_cross_entropies += cross_entropy(labels, probabilities)
 
         # Calculate loss
-        L = (1 / batch_size) * sum_of_cross_entropies
+        L = (1 / self.batch_size) * sum_of_cross_entropies
 
         return L
 
@@ -142,8 +152,18 @@ class Model:
         :return: gradient for weights,and gradient for biases
         """
         # TODO: calculate the gradients for the weights and the gradients for the bias with respect to average loss
+        num_examples = labels.size
 
-        pass
+        # create one hot encoded vector
+        one_hot_encoded_labels = one_hot_encode(labels, self.num_classes)
+
+        # gradW = (1 / self.num_classes) * np.dot(np.multiply(one_hot_encoded_labels, probabilities).T, inputs)
+        # gradB = (1 / self.num_classes) * np.sum(probabilities - one_hot_encoded_labels)
+
+        gradW = (1 / num_examples) * np.dot(inputs.T, (probabilities - one_hot_encoded_labels))
+        gradB = (1 / num_examples) * np.sum(probabilities - one_hot_encoded_labels)
+
+        return (gradW, gradB)
 
     def accuracy(self, probabilities, labels):
         """
@@ -154,10 +174,10 @@ class Model:
         :return: Float (0,1) that contains batch accuracy
         """
         # TODO: calculate the batch accuracy
-        batch_size = labels.shape
+        num_examples = labels.size
 
-        accuracy = np.where(probabilities == labels, probabilities, labels) / batch_size
-        
+        accuracy = np.sum(probabilities == labels) / num_examples
+
         return accuracy
 
     def gradient_descent(self, gradW, gradB):
@@ -191,8 +211,10 @@ def train(model, train_inputs, train_labels):
     # Calculate number of batches
     num_of_batches = math.ceil(input_size / model.batch_size)
 
+    loss = list()
+
     # Train on all the batched
-    for i in num_of_batches:
+    for i in range(num_of_batches):
         # Create the batch
         current_idx = model.batch_size * i
         batch_inputs = train_inputs[current_idx : current_idx + model.batch_size]
@@ -202,14 +224,15 @@ def train(model, train_inputs, train_labels):
         probablibities = model.forward(batch_inputs)
 
         # Calculate loss and visualize it
-        loss = model.loss(probablibities, batch_labels)
-        visualize_loss(loss)
+        loss.append(model.loss(probablibities, batch_labels))
 
         # Calculate gradients
         gradW, gradB = model.compute_gradients(batch_inputs, probablibities, batch_labels)
 
         # Perform gradient descent
         model.gradient_descent(gradW, gradB)
+
+    visualize_loss(loss)
 
 
 def test(model, test_inputs, test_labels):
@@ -221,20 +244,14 @@ def test(model, test_inputs, test_labels):
     """
     # TODO: Iterate over the testing inputs and labels
     # TODO: Return accuracy across testing set
-    input_size, input_data_size = test_inputs.shape
-
-    # Initialize probabilities
-    probabilities = np.empty((input_size,))
-
-    for idx, x in range(input_size):
-        probabilities[idx] = np.amax(softmax(model.W * x + model.b), axis = 1)
+    probabilities = np.argmax(softmax(np.dot(test_inputs, model.W) + model.b), axis = 1)
 
     accuracy = model.accuracy(probabilities, test_labels)
 
     return accuracy
 
 
-def hyperparameter_tuning(model, train_inputs, train_labels):
+def hyperparameter_tuning(model, inputs, labels):
     """Hyperparameter
 
     Args:
@@ -245,7 +262,38 @@ def hyperparameter_tuning(model, train_inputs, train_labels):
     Returns:
         batch_size, learning_rate ([tuple]): The optimal batch size and the learning rate
     """
-    pass
+    # Split data into train and validation
+    mask = np.random.rand(len(inputs)) <= 0.7
+    train_inputs, train_labels = inputs[mask], labels[mask]
+    validation_inputs, validation_labels = inputs[~mask], labels[~mask]
+
+    batch_sizes = [100, 200, 250, 300, 400, 555]
+    learning_rates = [0.005, 0.002, 0.03, 0.006, 0.001]
+    hyperparameters = itertools.product(batch_sizes, learning_rates)
+    results = list()
+
+    for batch_size, learning_rate in hyperparameters:
+        prev_accuracy = 0
+
+        while True:
+
+            start = timer()
+            train(model, train_inputs, train_labels)
+
+            accuracy = test(model, validation_inputs, validation_labels)
+
+            end = timer()
+
+            if prev_accuracy == accuracy:
+                results.append({
+                    'batch_size': batch_size,
+                    'learning_rate': learning_rate,
+                    'accuracy': accuracy,
+                    'time_to_train': end - start
+                })
+                break
+
+    return results
 
 
 def visualize_loss(losses):
@@ -306,9 +354,26 @@ def main():
     batches you run through in a single epoch.
     :return: None
     """
+    # Get all train inputs and labels
+    input_file_paths = [
+        './data/cifar-10-batches-py/data_batch_1',
+        './data/cifar-10-batches-py/data_batch_2',
+        './data/cifar-10-batches-py/data_batch_3',
+        './data/cifar-10-batches-py/data_batch_4',
+        './data/cifar-10-batches-py/data_batch_5'
+    ]
+
+    list_train_inputs, list_train_labels = (list(), list())
+    for input_file_path in input_file_paths:
+        curr_train_inputs, curr_train_labels = get_data(input_file_path)
+        list_train_inputs.append(curr_train_inputs)
+        list_train_labels.append(curr_train_labels)
+
 
     # TODO: load CIFAR10 train and test examples into train_inputs, train_labels, test_inputs, test_labels
-    train_inputs, train_labels = get_data('./data/cifar-10-batches-py/data_batch_1')
+    train_inputs = np.concatenate(list_train_inputs, axis = 0)
+    train_labels = np.concatenate(list_train_labels, axis = 0)
+
     test_inputs, test_labels = get_data('./data/cifar-10-batches-py/test_batch')
 
     # TODO: Create Model
@@ -322,7 +387,10 @@ def main():
     print(f'{accuracy:.4f}')
 
     # TODO: Visualize the data by using visualize_results() on a set of 10 examples
-    visualize_results(test_inputs, model.forward(), test_labels)
+    mask = np.random.choice(len(test_inputs), 10)
+    selected_inputs = test_inputs[mask]
+    selected_labels = test_labels[mask]
+    visualize_results(selected_inputs, model.forward(selected_inputs), selected_labels)
 
 
 if __name__ == "__main__":
