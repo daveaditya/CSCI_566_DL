@@ -95,8 +95,8 @@ class Model:
         # TODO: Initialize all hyperparametrs
         self.input_size = 3072  # Size of image vectors
         self.num_classes = 10  # Number of classes/possible labels
-        self.batch_size = 100
-        self.learning_rate = 0.005
+        self.batch_size = 16
+        self.learning_rate = 0.003
 
         # TODO: Initialize weights and biases
         self.W = np.zeros((3072, 10))
@@ -126,9 +126,6 @@ class Model:
         :return: average loss per batch element (float)
         """
         # TODO: calculate average cross entropy loss for a batch
-        # Convert labels to one-hot encoding
-        one_hot_encoded_labels = one_hot_encode(labels, self.num_classes)
-
         # Calculate sum of cross entropies for each image in the batch
         sum_of_cross_entropies = 0
         for _ in range(self.batch_size):
@@ -156,9 +153,6 @@ class Model:
 
         # create one hot encoded vector
         one_hot_encoded_labels = one_hot_encode(labels, self.num_classes)
-
-        # gradW = (1 / self.num_classes) * np.dot(np.multiply(one_hot_encoded_labels, probabilities).T, inputs)
-        # gradB = (1 / self.num_classes) * np.sum(probabilities - one_hot_encoded_labels)
 
         gradW = (1 / num_examples) * np.dot(inputs.T, (probabilities - one_hot_encoded_labels))
         gradB = (1 / num_examples) * np.sum(probabilities - one_hot_encoded_labels)
@@ -221,13 +215,13 @@ def train(model, train_inputs, train_labels):
         batch_labels = train_labels[current_idx: current_idx + model.batch_size]
 
         # Calculate probablities for the input belongning to a class
-        probablibities = model.forward(batch_inputs)
+        probabilities = model.forward(batch_inputs)
 
         # Calculate loss and visualize it
-        loss.append(model.loss(probablibities, batch_labels))
+        loss.append(model.loss(probabilities, batch_labels))
 
         # Calculate gradients
-        gradW, gradB = model.compute_gradients(batch_inputs, probablibities, batch_labels)
+        gradW, gradB = model.compute_gradients(batch_inputs, probabilities, batch_labels)
 
         # Perform gradient descent
         model.gradient_descent(gradW, gradB)
@@ -251,7 +245,7 @@ def test(model, test_inputs, test_labels):
     return accuracy
 
 
-def hyperparameter_tuning(model, inputs, labels):
+def hyperparameter_tuning(inputs, labels, test_inputs, test_labels):
     """Hyperparameter
 
     Args:
@@ -262,36 +256,43 @@ def hyperparameter_tuning(model, inputs, labels):
     Returns:
         batch_size, learning_rate ([tuple]): The optimal batch size and the learning rate
     """
-    # Split data into train and validation
-    mask = np.random.rand(len(inputs)) <= 0.7
-    train_inputs, train_labels = inputs[mask], labels[mask]
-    validation_inputs, validation_labels = inputs[~mask], labels[~mask]
 
-    batch_sizes = [100, 200, 250, 300, 400, 555]
-    learning_rates = [0.005, 0.002, 0.03, 0.006, 0.001]
+    batch_sizes = [16]
+    learning_rates = [0.003, 0.0035, 0.004, 0.0045, 0.005]
     hyperparameters = itertools.product(batch_sizes, learning_rates)
     results = list()
 
     for batch_size, learning_rate in hyperparameters:
-        prev_accuracy = 0
+        # Split data into train and validation
+        mask = np.random.rand(len(inputs)) <= 0.7
+        train_inputs, train_labels = inputs[mask], labels[mask]
+        validation_inputs, validation_labels = inputs[~mask], labels[~mask]
 
-        while True:
+        model = Model()
 
-            start = timer()
-            train(model, train_inputs, train_labels)
+        # Set model parameters
+        model.batch_size = batch_size
+        model.learning_rate = learning_rate
 
-            accuracy = test(model, validation_inputs, validation_labels)
+        start = timer()
+        train(model, train_inputs, train_labels)
 
-            end = timer()
+        validation_accuracy = test(model, validation_inputs, validation_labels)
+        test_accuracy = test(model, test_inputs, test_labels)
 
-            if prev_accuracy == accuracy:
-                results.append({
-                    'batch_size': batch_size,
-                    'learning_rate': learning_rate,
-                    'accuracy': accuracy,
-                    'time_to_train': end - start
-                })
-                break
+        end = timer()
+
+        result = {
+            'batch_size': batch_size,
+            'learning_rate': learning_rate,
+            'val_accuracy': validation_accuracy,
+            'test_accuracy': test_accuracy,
+            'total_time_in_seconds': end - start
+        }
+        print(result)
+        results.append(result)
+
+        del model
 
     return results
 
@@ -376,8 +377,11 @@ def main():
 
     test_inputs, test_labels = get_data('./data/cifar-10-batches-py/test_batch')
 
-    # TODO: Create Model
+    # # TODO: Create Model
     model = Model()
+
+    # Used for fine tuning hyperparameters
+    # hyperparameter_tuning(train_inputs, train_labels, test_inputs, test_labels)
 
     # TODO: Train model by calling train() ONCE on all data
     train(model, train_inputs, train_labels)
