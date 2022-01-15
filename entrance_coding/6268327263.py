@@ -96,7 +96,7 @@ class Model:
         self.input_size = 3072  # Size of image vectors
         self.num_classes = 10  # Number of classes/possible labels
         self.batch_size = 16
-        self.learning_rate = 0.003
+        self.learning_rate = 0.0035
 
         # TODO: Initialize weights and biases
         self.W = np.zeros((3072, 10))

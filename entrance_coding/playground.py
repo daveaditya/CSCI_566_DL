@@ -95,7 +95,7 @@ class Model:
         self.input_size = 3072  # Size of image vectors
         self.num_classes = 10  # Number of classes/possible labels
         self.batch_size = 16
-        self.learning_rate = 0.003
+        self.learning_rate = 0.0035
 
         # TODO: Initialize weights and biases
         self.W = np.zeros((3072, 10))
@@ -224,7 +224,7 @@ def train(model, train_inputs, train_labels):
         # Perform gradient descent
         model.gradient_descent(gradW, gradB)
 
-    visualize_loss(loss)
+    # visualize_loss(loss)
 
 
 def test(model, test_inputs, test_labels):
@@ -256,7 +256,7 @@ def hyperparameter_tuning(inputs, labels, test_inputs, test_labels):
     """
 
     batch_sizes = [16]
-    learning_rates = [0.003, 0.0035, 0.004, 0.0045, 0.005]
+    learning_rates = [0.003, 0.0035, 0.004, 0.0045, 0.001, 0.005]
     hyperparameters = itertools.product(batch_sizes, learning_rates)
     results = list()
 
