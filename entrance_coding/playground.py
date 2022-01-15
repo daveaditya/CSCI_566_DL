@@ -5,7 +5,6 @@ import math
 import itertools
 from timeit import default_timer as timer
 
-
 def unpickle(file):
     with open(file, "rb") as f:
         data = pickle.load(f, encoding="bytes")
@@ -35,23 +34,23 @@ def get_data(inputs_file_path):
 
 
 def softmax(x):
-    """Calculates the softmax of a vector
+        """Calculates the softmax of a vector
 
-    Args:
-        x (ndarray[uint8]): An ndarray of uint8
+        Args:
+            x (ndarray[uint8]): An ndarray of uint8
 
-    Returns:
-        [ndarray[uint8]]: Vector after applying softmax
-    """
-    # For numerical stability
-    exp = np.exp(x - np.max(x))
+        Returns:
+            [ndarray[uint8]]: Vector after applying softmax
+        """
+        # For numerical stability
+        exp = np.exp(x - np.max(x))
 
-    # Calculate exponentiation of the elements
-    for i in range(len(x)):
-        exp[i] /= np.sum(exp[i])
+        # Calculate exponentiation of the elements
+        for i in range(len(x)):
+            exp[i] /= np.sum(exp[i])
 
-    # Return the vector (applied softmax)
-    return exp
+        # Return the vector (applied softmax)
+        return exp
 
 
 def cross_entropy(y, p):
@@ -211,7 +210,7 @@ def train(model, train_inputs, train_labels):
         # Create the batch
         current_idx = model.batch_size * i
         batch_inputs = train_inputs[current_idx : current_idx + model.batch_size]
-        batch_labels = train_labels[current_idx : current_idx + model.batch_size]
+        batch_labels = train_labels[current_idx: current_idx + model.batch_size]
 
         # Calculate probablities for the input belongning to a class
         probabilities = model.forward(batch_inputs)
@@ -237,7 +236,7 @@ def test(model, test_inputs, test_labels):
     """
     # TODO: Iterate over the testing inputs and labels
     # TODO: Return accuracy across testing set
-    probabilities = np.argmax(softmax(np.dot(test_inputs, model.W) + model.b), axis=1)
+    probabilities = np.argmax(softmax(np.dot(test_inputs, model.W) + model.b), axis = 1)
 
     accuracy = model.accuracy(probabilities, test_labels)
 
@@ -282,11 +281,11 @@ def hyperparameter_tuning(inputs, labels, test_inputs, test_labels):
         end = timer()
 
         result = {
-            "batch_size": batch_size,
-            "learning_rate": learning_rate,
-            "val_accuracy": validation_accuracy,
-            "test_accuracy": test_accuracy,
-            "total_time_in_seconds": end - start,
+            'batch_size': batch_size,
+            'learning_rate': learning_rate,
+            'val_accuracy': validation_accuracy,
+            'test_accuracy': test_accuracy,
+            'total_time_in_seconds': end - start
         }
         print(result)
         results.append(result)
@@ -355,7 +354,13 @@ def main():
     :return: None
     """
     # Get all train inputs and labels
-    input_file_paths = ["./data_batch_1", "./data_batch_2", "./data_batch_3", "./data_batch_4", "./data_batch_5"]
+    input_file_paths = [
+        './data/cifar-10-batches-py/data_batch_1',
+        './data/cifar-10-batches-py/data_batch_2',
+        './data/cifar-10-batches-py/data_batch_3',
+        './data/cifar-10-batches-py/data_batch_4',
+        './data/cifar-10-batches-py/data_batch_5'
+    ]
 
     list_train_inputs, list_train_labels = (list(), list())
     for input_file_path in input_file_paths:
@@ -363,11 +368,12 @@ def main():
         list_train_inputs.append(curr_train_inputs)
         list_train_labels.append(curr_train_labels)
 
-    # TODO: load CIFAR10 train and test examples into train_inputs, train_labels, test_inputs, test_labels
-    train_inputs = np.concatenate(list_train_inputs, axis=0)
-    train_labels = np.concatenate(list_train_labels, axis=0)
 
-    test_inputs, test_labels = get_data("./test_batch")
+    # TODO: load CIFAR10 train and test examples into train_inputs, train_labels, test_inputs, test_labels
+    train_inputs = np.concatenate(list_train_inputs, axis = 0)
+    train_labels = np.concatenate(list_train_labels, axis = 0)
+
+    test_inputs, test_labels = get_data('./data/cifar-10-batches-py/test_batch')
 
     # # TODO: Create Model
     model = Model()
@@ -380,7 +386,7 @@ def main():
 
     # TODO: Test the accuracy by calling test() after running train()
     accuracy = test(model, test_inputs, test_labels)
-    print(f"{accuracy:.4f}")
+    print(f'{accuracy:.4f}')
 
     # TODO: Visualize the data by using visualize_results() on a set of 10 examples
     mask = np.random.choice(len(test_inputs), 10)
