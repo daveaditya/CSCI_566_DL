@@ -1,0 +1,3 @@
+[submodule "assignment_01"]
+	path = assignment_01
+	url = https://github.com/csci566-spring2022/csci566-assignment1.git
