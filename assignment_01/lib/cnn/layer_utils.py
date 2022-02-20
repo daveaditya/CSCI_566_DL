@@ -298,65 +298,23 @@ class MaxPoolingLayer(object):
         # Initialize the output
         output = np.zeros(output_shape)
 
-        # Iterate over each image in the batch
-        for i in range(batch_size):
+        # Start from the height
+        for h in range(output_height):
 
-            # Start from the height
-            for h in range(output_height):
+            # Calulate the current window coordinates top and bottom
+            top, bottom = h * self.stride, h * self.stride + self.pool_size
 
-                # Calulate the current window coordinates top and bottom
-                top, bottom = h * self.stride, h * self.stride + self.pool_size
+            # Towards the width
+            # i.e. from top-to-bottom, left-to-right
+            for w in range(output_width):
 
-                # Towards the width
-                # i.e. from top-to-bottom, left-to-right
-                for w in range(output_width):
+                # Calulate the current window coordinates left and right
+                left, right = w * self.stride, w * self.stride + self.pool_size
 
-                    # Calulate the current window coordinates left and right
-                    left, right = w * self.stride, w * self.stride + self.pool_size
+                # Get the part of the image acted upon by the current window
+                img_slices = img[:, top:bottom, left:right, :]
 
-                    # Get the part of the image acted upon by the current window
-                    img_slice = img[i, top:bottom, left:right, :]
-
-                    output[i, h, w, :] = np.max(img_slice, axis=(0, 1, 2))
-        # Store for backward pass
-        # self.meta = img
-
-        # # Calculate output shape
-        # batch_size, input_height, input_width, no_channels = img.shape
-
-        # # Calculate and store the output shape
-        # output_height = int(1 + (input_height - self.pool_size) / self.stride)
-        # output_width = int(1 + (input_width - self.pool_size) / self.stride)
-        # out_channels = no_channels
-        # output_shape = (batch_size, output_height, output_width, out_channels)
-
-        # # Initialize the output
-        # output = np.zeros(output_shape)
-
-        # # Iterate over each image in the batch
-        # for i in range(batch_size):
-
-        #     # Start from the height
-        #     for h in range(output_height):
-
-        #         # Calulate the current window coordinates top and bottom
-        #         top, bottom = h * self.stride, h * self.stride + self.pool_size
-
-        #         # Towards the width
-        #         # i.e. from top-to-bottom, left-to-right
-        #         for w in range(output_width):
-
-        #             # Calulate the current window coordinates left and right
-        #             left, right = w * self.stride, w * self.stride + self.pool_size
-
-        #             # Loop over the channels i.e. the number of filters
-        #             for ch in range(out_channels):
-
-        #                 # Get the part of the image acted upon by the current window
-        #                 img_slice = img[i, top:bottom, left:right, ch]
-
-        #                 # Do max pooling and store in the output
-        #                 output[i, h, w, ch] = np.max(img_slice)
+                output[:, h, w, :] = np.max(img_slices, axis=(1, 2))
         #############################################################################
         #                             END OF YOUR CODE                              #
         #############################################################################
@@ -375,60 +333,32 @@ class MaxPoolingLayer(object):
         # corresponding name.                                                       #
         # Store the output gradients in the variable dimg provided above.           #
         #############################################################################
-        create_window_max_mask = lambda x: x == np.max(x)
-
         # Get the batch size, and respective output dimensions
-        batch_size = img.shape[0]
-        _, h_out, w_out, channel_out = dprev.shape
+        batch_size, h_out, w_out, channel_out = dprev.shape
 
         # Initialize dimg
-        dimg = np.zeros(img.shape)
+        dimg = np.zeros_like(img)
 
-        print("dprev shape :: ", dprev.shape)
-        print("dimg shape :: ", dimg.shape)
+        # Start from the height
+        for h in range(h_out):
 
-        # Itereate over all the image in the batch
-        for i in range(batch_size):
+            # Calculate the current window coordinates top and bottom
+            top, bottom = h * self.stride, h * self.stride + h_pool
 
-            # Start from the height
-            for h in range(h_out):
+            # Go towards the width
+            # i.e. from top-to-bottom and left-to-right
+            for w in range(w_out):
 
-                # Calculate the current window coordinates top and bottom
-                top, bottom = h * self.stride, h * self.stride + self.pool_size
+                # Calculate the current window coordinates left anf right
+                left, right = w * self.stride, w * self.stride + w_pool
 
-                # Go towards the width
-                # i.e. from top-to-bottom and left-to-right
-                for w in range(w_out):
+                # Get the current image part that is to be worked on
+                img_slices = img[:, top:bottom, left:right, :]
 
-                    # Calculate the current window coordinates left anf right
-                    left, right = w * self.stride, w * self.stride + self.pool_size
+                # Get the mask corresponding to the images' slice
+                mask = img_slices == np.max(img_slices, axis = (1, 2)).reshape((batch_size, 1, 1, channel_out))
 
-                    # Get the current image part that is to be worked on
-                    curr_img_slice = img[i, top:bottom, left:right, :]
-                    print("curr_img_slice shape :: ", curr_img_slice.shape)
-
-                    # Get the mask corresponding to the current image part
-                    mask = create_window_max_mask(curr_img_slice)
-                    print("mask shape :: ", mask.shape)
-
-
-                    print("Test mask")
-                    print(create_window_max_mask(curr_img_slice)[0] == create_window_max_mask(img[i, top:bottom, left:right, 0]))
-                    break
-
-                    # # Calculate for every channel in dprev i.e. the number of filters
-                    # for ch in range(channel_out):
-
-                    #     # Get the current image part that is to be worked on
-                    #     curr_img_slice = img[i, top:bottom, left:right, ch]
-
-                    #     # Get the mask corresponding to the current image part
-                    #     mask = create_window_max_mask(curr_img_slice)
-
-                    #     # Calculate the derivative for current part
-                    #     dimg[i, top:bottom, left:right, ch] += np.multiply(
-                    #         mask, dprev[i, h, w, ch]
-                    #     )
+                dimg[:, top:bottom, left:right, :] += mask * dprev[:, h, w, :].reshape(batch_size, 1, 1, channel_out)
         #############################################################################
         #                             END OF YOUR CODE                              #
         #############################################################################
