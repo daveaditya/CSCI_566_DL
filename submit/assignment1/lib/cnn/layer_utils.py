@@ -132,7 +132,7 @@ class ConvLayer2D(object):
         # TODO: Implement the forward pass of a single fully connected layer.       #
         # Store the results in the variable "output" provided above.                #
         #############################################################################
-        def convolve_all_filters(slice, W, b):
+        def convolve(slice, W, b):
             """Convolve a single slice
 
             Args:
@@ -144,7 +144,7 @@ class ConvLayer2D(object):
                 np.ndarray: The convolved result
             """
             slice_dot_w = np.multiply(slice, W)
-            slice_sum = np.sum(slice_dot_w, axis=(0, 1, 2))
+            slice_sum = np.sum(slice_dot_w)
             output = slice_sum + b.astype(float)
             return output
 
@@ -169,14 +169,8 @@ class ConvLayer2D(object):
         # initialize output
         output = np.zeros(output_shape)
 
-        b_expanded = np.expand_dims(self.params[self.b_name], axis=(0, 1))
-
         # Convolve over every image
         for i in range(batch_size):
-
-            curr_img_padded = img_padded[i]
-            curr_img_padded_expanded = np.expand_dims(curr_img_padded, -1)
-            curr_img_padded_tiled = np.tile(curr_img_padded_expanded, self.number_filters)
 
             # Start filling from the height of the output
             for h in range(output_height):
@@ -191,15 +185,16 @@ class ConvLayer2D(object):
                     # Calculate the coordinates of the current window left and right
                     left, right = w * self.stride, w * self.stride + self.kernel_size
 
-                    # Get the image slice coresponding to the current window coordinates
-                    img_slice = curr_img_padded_tiled[top:bottom, left:right, :, :]
+                    # Loop over the filters
+                    for ch in range(self.number_filters):
 
-                    inter_out = convolve_all_filters(img_slice, self.params[self.w_name], b_expanded)
+                        # Get the image slice coresponding to the current window coordinates
+                        img_slice = img_padded[i, top:bottom, left:right, :]
 
-                    output[i, h, w, :] = inter_out
-
-        # Set b to original dimensions
-        self.params[self.b_name] = b_expanded[0, 0, :]
+                        # Convolve and store in the output
+                        output[i, h, w, ch] = convolve(
+                            img_slice, self.params[self.w_name][:, :, :, ch], self.params[self.b_name][ch]
+                        )
         #############################################################################
         #                             END OF YOUR CODE                              #
         #############################################################################
@@ -347,10 +342,14 @@ class MaxPoolingLayer(object):
                     # Calulate the current window coordinates left and right
                     left, right = w * self.stride, w * self.stride + self.pool_size
 
-                    # Get the part of the image acted upon by the current window
-                    img_slice = img[i, top:bottom, left:right, :]
+                    # Loop over the channels i.e. the number of filters
+                    for ch in range(out_channels):
 
-                    output[i, h, w, :] = np.max(img_slice, axis=(0, 1, 2))
+                        # Get the part of the image acted upon by the current window
+                        img_slice = img[i, top:bottom, left:right, ch]
+
+                        # Do max pooling and store in the output
+                        output[i, h, w, ch] = np.max(img_slice)
         #############################################################################
         #                             END OF YOUR CODE                              #
         #############################################################################
