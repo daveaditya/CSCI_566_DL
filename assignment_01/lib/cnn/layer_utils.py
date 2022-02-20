@@ -132,27 +132,8 @@ class ConvLayer2D(object):
         # TODO: Implement the forward pass of a single fully connected layer.       #
         # Store the results in the variable "output" provided above.                #
         #############################################################################
-        def convolve_all_filters(slice, W, b):
-            """Convolve a single slice
-
-            Args:
-                slice (np.ndarray): A slice of image
-                W (np.ndarray): The weights / kernel to convolve with
-                b (np.ndarray): The bias for the convulation
-
-            Returns:
-                np.ndarray: The convolved result
-            """
-            slice_dot_w = np.multiply(slice, W)
-            slice_sum = np.sum(slice_dot_w, axis=(0, 1, 2))
-            output = slice_sum + b.astype(float)
-            return output
-
         # store for the batch of images for backprop
         self.meta = img
-
-        # Get the batch size
-        batch_size = img.shape[0]
 
         # pad the input according to self.padding (see np.pad)
         img_padded = (
@@ -169,37 +150,27 @@ class ConvLayer2D(object):
         # initialize output
         output = np.zeros(output_shape)
 
-        b_expanded = np.expand_dims(self.params[self.b_name], axis=(0, 1))
+        weights = self.params[self.w_name]
+        bias = self.params[self.b_name]
 
-        # Convolve over every image
-        for i in range(batch_size):
+        # Start filling from the height of the output
+        for h in range(output_height):
 
-            curr_img_padded = img_padded[i]
-            curr_img_padded_expanded = np.expand_dims(curr_img_padded, -1)
-            curr_img_padded_tiled = np.tile(curr_img_padded_expanded, self.number_filters)
+            # Calculate the coordinates of the current window top and bottom
+            top, bottom = h * self.stride, h * self.stride + self.kernel_size
 
-            # Start filling from the height of the output
-            for h in range(output_height):
+            # Followed by the width
+            # i.e. top-bottom, left-right manner
+            for w in range(output_width):
 
-                # Calculate the coordinates of the current window top and bottom
-                top, bottom = h * self.stride, h * self.stride + self.kernel_size
+                # Calculate the coordinates of the current window left and right
+                left, right = w * self.stride, w * self.stride + self.kernel_size
 
-                # Followed by the width
-                # i.e. top-bottom, left-right manner
-                for w in range(output_width):
+                # Get the image slice coresponding to the current window coordinates
+                img_slices = img_padded[:, top:bottom, left:right, :]
+                img_slices_reshaped = np.expand_dims(img_slices, -1)
 
-                    # Calculate the coordinates of the current window left and right
-                    left, right = w * self.stride, w * self.stride + self.kernel_size
-
-                    # Get the image slice coresponding to the current window coordinates
-                    img_slice = curr_img_padded_tiled[top:bottom, left:right, :, :]
-
-                    inter_out = convolve_all_filters(img_slice, self.params[self.w_name], b_expanded)
-
-                    output[i, h, w, :] = inter_out
-
-        # Set b to original dimensions
-        self.params[self.b_name] = b_expanded[0, 0, :]
+                output[:, h, w, :] = np.sum( np.multiply(weights, img_slices_reshaped) , axis = (1,2,3)) + bias
         #############################################################################
         #                             END OF YOUR CODE                              #
         #############################################################################
@@ -250,44 +221,40 @@ class ConvLayer2D(object):
             )
         )
 
-        # Iterate over every image in the batch
-        for i in range(batch_size):
 
-            # Start from the height of the output
-            for h in range(output_height):
+        # Start from the height of the output
+        for h in range(output_height):
 
-                # Calculate the coordinates of the current window top and bottom
-                top, bottom = h * self.stride, h * self.stride + self.kernel_size
+            # Calculate the coordinates of the current window top and bottom
+            top, bottom = h * self.stride, h * self.stride + self.kernel_size
 
-                # Towards the width of the output
-                # i.e. Move from top-to-bottom and left-to-right
-                for w in range(output_width):
+            # Towards the width of the output
+            # i.e. Move from top-to-bottom and left-to-right
+            for w in range(output_width):
 
-                    # Calculate the coordinates of the current window left and right
-                    left, right = w * self.stride, w * self.stride + self.kernel_size
+                # Calculate the coordinates of the current window left and right
+                left, right = w * self.stride, w * self.stride + self.kernel_size
 
-                    # Calculate for every channel i.e. filter
-                    for ch in range(output_no_channels):
+                # Get the image slice of pointed by the window coordinates
+                img_padded_slices = img_padded[: , top:bottom, left:right, :]
+                img_padded_slices_reshaped = img_padded_slices.reshape(batch_size, self.kernel_size, self.kernel_size, img.shape[-1], 1)
+                
+                dprev_reshaped = dprev[:, h, w, :].reshape(batch_size, 1, 1, 1, self.number_filters)
 
-                        # Get the image slice of pointed by the window coordinates
-                        curr_img_padded_slice = img_padded[i, top:bottom, left:right, :]
+                # Calculate the derivative for the current image slice window
+                dimg_padded[:, top:bottom, left:right, :] += np.sum(self.params[self.w_name] * dprev_reshaped, axis = 4)
 
-                        # Calculate the derivative for the current image slice window
-                        dimg_padded[i, top:bottom, left:right, :] += (
-                            self.params[self.w_name][:, :, :, ch] * dprev[i, h, w, ch]
-                        )
+                # Calculate derivative of the weight
+                dW += np.sum(img_padded_slices_reshaped * dprev_reshaped, axis = 0)
 
-                        # Calculate derivative of the weight
-                        dW[:, :, :, ch] += curr_img_padded_slice * dprev[i, h, w, ch]
+                # Calculate derivative of the bias
+                db += np.sum(dprev_reshaped, axis = (0,1,2,3))
 
-                        # Calculate derivative of the bias
-                        db[ch] += dprev[i, h, w, ch]
-
-            # Set the dimg for current image without padding
-            if self.padding > 0:
-                dimg[i, :, :, :] = dimg_padded[i, self.padding : -self.padding, self.padding : -self.padding, :]
-            else:
-                dimg[i, :, :, :] = dimg_padded[i, :, :, :]
+        # Set the dimg for current image without padding
+        if self.padding > 0:
+            dimg = dimg_padded[:, self.padding:-self.padding, self.padding:-self.padding, :]
+        else:
+            dimg = dimg_padded
 
         self.grads[self.w_name] = dW
         self.grads[self.b_name] = db
@@ -351,6 +318,45 @@ class MaxPoolingLayer(object):
                     img_slice = img[i, top:bottom, left:right, :]
 
                     output[i, h, w, :] = np.max(img_slice, axis=(0, 1, 2))
+        # Store for backward pass
+        # self.meta = img
+
+        # # Calculate output shape
+        # batch_size, input_height, input_width, no_channels = img.shape
+
+        # # Calculate and store the output shape
+        # output_height = int(1 + (input_height - self.pool_size) / self.stride)
+        # output_width = int(1 + (input_width - self.pool_size) / self.stride)
+        # out_channels = no_channels
+        # output_shape = (batch_size, output_height, output_width, out_channels)
+
+        # # Initialize the output
+        # output = np.zeros(output_shape)
+
+        # # Iterate over each image in the batch
+        # for i in range(batch_size):
+
+        #     # Start from the height
+        #     for h in range(output_height):
+
+        #         # Calulate the current window coordinates top and bottom
+        #         top, bottom = h * self.stride, h * self.stride + self.pool_size
+
+        #         # Towards the width
+        #         # i.e. from top-to-bottom, left-to-right
+        #         for w in range(output_width):
+
+        #             # Calulate the current window coordinates left and right
+        #             left, right = w * self.stride, w * self.stride + self.pool_size
+
+        #             # Loop over the channels i.e. the number of filters
+        #             for ch in range(out_channels):
+
+        #                 # Get the part of the image acted upon by the current window
+        #                 img_slice = img[i, top:bottom, left:right, ch]
+
+        #                 # Do max pooling and store in the output
+        #                 output[i, h, w, ch] = np.max(img_slice)
         #############################################################################
         #                             END OF YOUR CODE                              #
         #############################################################################
@@ -378,6 +384,9 @@ class MaxPoolingLayer(object):
         # Initialize dimg
         dimg = np.zeros(img.shape)
 
+        print("dprev shape :: ", dprev.shape)
+        print("dimg shape :: ", dimg.shape)
+
         # Itereate over all the image in the batch
         for i in range(batch_size):
 
@@ -394,17 +403,32 @@ class MaxPoolingLayer(object):
                     # Calculate the current window coordinates left anf right
                     left, right = w * self.stride, w * self.stride + self.pool_size
 
-                    # Calculate for every channel in dprev i.e. the number of filters
-                    for ch in range(channel_out):
+                    # Get the current image part that is to be worked on
+                    curr_img_slice = img[i, top:bottom, left:right, :]
+                    print("curr_img_slice shape :: ", curr_img_slice.shape)
 
-                        # Get the current image part that is to be worked on
-                        curr_img_slice = img[i, top:bottom, left:right, ch]
+                    # Get the mask corresponding to the current image part
+                    mask = create_window_max_mask(curr_img_slice)
+                    print("mask shape :: ", mask.shape)
 
-                        # Get the mask corresponding to the current image part
-                        mask = create_window_max_mask(curr_img_slice)
 
-                        # Calculate the derivative for current part
-                        dimg[i, top:bottom, left:right, ch] += np.multiply(mask, dprev[i, h, w, ch])
+                    print("Test mask")
+                    print(create_window_max_mask(curr_img_slice)[0] == create_window_max_mask(img[i, top:bottom, left:right, 0]))
+                    break
+
+                    # # Calculate for every channel in dprev i.e. the number of filters
+                    # for ch in range(channel_out):
+
+                    #     # Get the current image part that is to be worked on
+                    #     curr_img_slice = img[i, top:bottom, left:right, ch]
+
+                    #     # Get the mask corresponding to the current image part
+                    #     mask = create_window_max_mask(curr_img_slice)
+
+                    #     # Calculate the derivative for current part
+                    #     dimg[i, top:bottom, left:right, ch] += np.multiply(
+                    #         mask, dprev[i, h, w, ch]
+                    #     )
         #############################################################################
         #                             END OF YOUR CODE                              #
         #############################################################################
