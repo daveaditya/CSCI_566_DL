@@ -26,13 +26,12 @@ class SmallConvolutionalNetwork(Module):
             ########## TODO: ##########
             ConvLayer2D(3, 5, 32, name="conv1"),
             leaky_relu(name="lrelu1"),
-            MaxPoolingLayer(2, 2, name="maxp1"),
             ConvLayer2D(32, 5, 64, name="conv2"),
             leaky_relu(name="lrelu2"),
-            MaxPoolingLayer(2, 2, name="maxp2"),
+            MaxPoolingLayer(2, 2, name="maxp1"),
             flatten(name="flatten"),
+            fc(9216, 9216, name="fc1"),
             leaky_relu(name="lrelu3"),
-            fc(1600, 10, name="fc1"),
-            dropout(keep_prob=0.25, name="dropout1")
+            fc(9216, 10, name="fc2"),
             ########### END ###########
         )
