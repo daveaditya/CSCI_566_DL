@@ -24,14 +24,14 @@ class SmallConvolutionalNetwork(Module):
     def __init__(self, keep_prob=0, dtype=np.float32, seed=None):
         self.net = sequential(
             ########## TODO: ##########
-            ConvLayer2D(3, 5, 32, name="conv1"),
-            leaky_relu(name="lrelu1"),
-            ConvLayer2D(32, 5, 64, name="conv2"),
-            leaky_relu(name="lrelu2"),
-            MaxPoolingLayer(2, 2, name="maxp1"),
-            flatten(name="flatten"),
-            fc(9216, 9216, name="fc1"),
-            leaky_relu(name="lrelu3"),
-            fc(9216, 10, name="fc2"),
+            ConvLayer2D(3, 5, 8, 1, 1, name = "conv1"),
+            leaky_relu(name="lr1"),
+            ConvLayer2D(8, 6, 4, 1, 1, name = "conv2"),
+            leaky_relu(name="lr2"),
+            MaxPoolingLayer(3, 1, name = "pool2"),
+            flatten(name = "flatten1"),
+            fc(2500, 10, 0.02, name="fc1"),
+            leaky_relu(name="lr3"),
+            fc(10, 10, 0.02, name="fc2")
             ########### END ###########
         )
