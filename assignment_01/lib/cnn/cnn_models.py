@@ -19,7 +19,7 @@ class TestCNN(Module):
             ########### END ###########
         )
 
-
+# 84.03
 # class SmallConvolutionalNetwork(Module):
 #     def __init__(self, keep_prob=0, dtype=np.float32, seed=None):
 #         self.net = sequential(
@@ -36,19 +36,37 @@ class TestCNN(Module):
 #             ########### END ###########
 #         )
 
+# 82.xx
+# class SmallConvolutionalNetwork(Module):
+#     def __init__(self, keep_prob=0, dtype=np.float32, seed=None):
+#         self.net = sequential(
+#             ########## TODO: ##########
+#             ConvLayer2D(3, 3, 16, 1, 0, name = "conv1"),
+#             leaky_relu(name="lr1"),
+#             MaxPoolingLayer(3, 2, name = "pool1"),
+#             ConvLayer2D(16, 3, 8, 1, 0, name = "conv2"),
+#             leaky_relu(name="lr2"),
+#             MaxPoolingLayer(3, 1, name = "pool2"),
+#             flatten(name = "flatten1"),
+#             fc(800, 10, 0.02, name="fc1"),
+#             leaky_relu(name="lr3"),
+#             fc(10, 10, 0.02, name="fc2")
+#             ########### END ###########
+#         )
+
 
 class SmallConvolutionalNetwork(Module):
     def __init__(self, keep_prob=0, dtype=np.float32, seed=None):
         self.net = sequential(
             ########## TODO: ##########
-            ConvLayer2D(3, 3, 16, 1, 0, name = "conv1"),
+            ConvLayer2D(3, 3, 32, 1, 0, name = "conv1"),
             leaky_relu(name="lr1"),
             MaxPoolingLayer(3, 2, name = "pool1"),
-            ConvLayer2D(16, 3, 8, 1, 0, name = "conv2"),
+            ConvLayer2D(32, 3, 32, 1, 0, name = "conv2"),
             leaky_relu(name="lr2"),
             MaxPoolingLayer(3, 1, name = "pool2"),
             flatten(name = "flatten1"),
-            fc(800, 10, 0.02, name="fc1"),
+            fc(3200, 10, 0.02, name="fc1"),
             leaky_relu(name="lr3"),
             fc(10, 10, 0.02, name="fc2")
             ########### END ###########
